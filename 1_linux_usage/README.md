@@ -170,3 +170,5 @@ admin@aka0601-vps-5:~$ sudo journalctl -b -1 --since "10 minutes ago" | grep -i 
 admin@aka0601-vps-5:~$ sudo journalctl -u sshd | grep 'Failed password'
 [вывод пуст - хороший признак безопасности]
 ```
+
+[Следующий раздел](https://github.com/toxakalinin/system_administration/blob/main/2_net/)
