@@ -359,23 +359,116 @@ if __name__ == "__main__":
    - Свободное место на диске
    - Загрузку CPU и RAM
 2. Настройте cron для запуска каждые 5 минут
-3. При превышении порогов отправляйте email
+3. При превышении порогов отправляйте email и сообщение в Телеграм
 
-### Задание 2: Автоматизация бэкапов баз данных
-1. Создайте Python-скрипт для:
-   - Дампов MySQL/PostgreSQL баз
-   - Шифрования бэкапов
-   - Загрузки в облачное хранилище
-2. Реализуйте ротацию бэкапов
-3. Настройте ежедневное выполнение через cron
+### Выполнение:
 
-### Задание 3: Self-healing система
-1. Разработайте Python-скрипт, который:
-   - Обнаруживает упавшие сервисы (по процессам или портам)
-   - Автоматически перезапускает их
-   - Отправляет уведомление о проблеме
-2. Протестируйте на Docker-контейнерах
-3. Настройте мониторинг работы скрипта
+```bash
+#!/bin/bash
+
+# Конфигурация
+EMAIL="example@mail.ru"
+TOKEN="7815737947:AAF3jGm2-uKEXszOm9kh86YhZKt-tNGPVUc"
+CHAT_ID="1605213794"
+HOSTNAME=$(hostname)
+
+# Проверка портов
+check_ports() {
+    local result=""
+    local alert=false
+    local ports=(80 443 22)
+    
+    for port in "${ports[@]}"; do
+        if nc -z -w2 localhost "$port" &>/dev/null; then
+            result+="✅ Port $port: OPEN\n"
+        else
+            result+="🔥 Port $port: CLOSED\n"
+            alert=true
+        fi
+    done
+    
+    [[ "$alert" == true ]] && send_alert "🚨 $HOSTNAME: Port Issue" "$result"
+}
+
+# Проверка диска
+check_disk() {
+    local threshold=20
+    local alert=false
+    local result=""
+    
+    while read -r line; do
+        local partition=$(echo "$line" | awk '{print $1}')
+        local use=$(echo "$line" | awk '{print $5}' | tr -d '%')
+        local available=$(echo "$line" | awk '{print $4}')
+        
+        if (( use > threshold )); then
+            result+="🔥 $partition: ${use}% used (${available} free)\n"
+            alert=true
+        else
+            result+="✅ $partition: ${use}% used\n"
+        fi
+    done < <(df -h | grep -vE '^Filesystem|tmpfs|cdrom')
+    
+    [[ "$alert" == true ]] && send_alert "🚨 $HOSTNAME: Disk Space Alert" "$result"
+}
+
+# Проверка CPU и RAM
+check_resources() {
+    local cpu_threshold=80
+    local ram_threshold=80
+    local alert=false
+    local result=""
+    
+    # CPU
+    local cpu_usage=$(top -bn1 | grep "Cpu(s)" | awk '{print $2 + $4}')
+    if (( $(echo "$cpu_usage > $cpu_threshold" | bc -l) )); then
+        result+="🔥 CPU: ${cpu_usage}% used\n"
+        alert=true
+    else
+        result+="✅ CPU: ${cpu_usage}%\n"
+    fi
+    
+    # RAM
+    local ram_usage=$(free | grep Mem | awk '{print $3/$2 * 100.0}')
+    if (( $(echo "$ram_usage > $ram_threshold" | bc -l) )); then
+        result+="🔥 RAM: ${ram_usage%.*}% used\n"
+        alert=true
+    else
+        result+="✅ RAM: ${ram_usage%.*}%\n"
+    fi
+    
+    [[ "$alert" == true ]] && send_alert "🚨 $HOSTNAME: Resource Alert" "$result"
+}
+
+# Отправка уведомлений
+send_alert() {
+    local subject="$1"
+    local message="$2"
+    local full_msg="Subject: $subject\n\n$message"
+    
+    # Отправка email
+    echo -e "$full_msg" | mail -s "$subject" "$EMAIL"
+    
+    # Отправка в Telegram
+    curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+        -d chat_id="$CHAT_ID" \
+        -d text="$subject%0A%0A$message" \
+        -d disable_web_page_preview=true \
+        > /dev/null
+}
+
+# Основной цикл проверок
+(
+    echo -e "\n[$(date)] Monitoring started"
+    check_ports
+    check_disk
+    check_resources
+    echo "[$(date)] Monitoring completed"
+) >> $PWD/monitor.log 2>&1
+```
+Осталось лишь настроить задачу в cron. Скрипт готов!
+
+---
 
 ## 💡 Лучшие практики автоматизации
 
@@ -456,10 +549,10 @@ if __name__ == "__main__":
 ---
 
 <div align="center" style="margin-top: 40px;">
-  <a href="/🔐_5_Security_Hardening/README.md" style="display: inline-block; margin-right: 20px; padding: 12px 24px; background: #555; color: white; border-radius: 6px; text-decoration: none; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
-    ← Назад: Безопасность и Hardening
+  <a href="/5_security/README.md" style="display: inline-block; margin-right: 20px; padding: 12px 24px; background: #555; color: white; border-radius: 6px; text-decoration: none; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+    ← Назад: Безопасность
   </a>
-  <a href="/📈_7_Monitoring_Logging/README.md" style="display: inline-block; padding: 12px 24px; background: #4CAF50; color: white; border-radius: 6px; text-decoration: none; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+  <a href="/7_logs_and_mon/README.md" style="display: inline-block; padding: 12px 24px; background: #4CAF50; color: white; border-radius: 6px; text-decoration: none; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
     Далее: Мониторинг и логирование →
   </a>
 </div>
